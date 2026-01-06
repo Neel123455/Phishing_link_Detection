@@ -265,4 +265,5 @@ When reviewing teammate's code:
 
 This Contributing guide is adapted from best practices in open source.
 
-Thank you for contributing! 🙏
+Thank you for contributing! 
+Kush Vikani

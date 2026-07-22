@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>URL Phishing Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #F4F6F9;
+    --ink: #101A2B;
+    --muted: #5B6B80;
+    --line: #DDE4EC;
+    --card: #FFFFFF;
+    --console: #101A2B;
+    --console-ink: #E8EEF6;
+    --accent: #0F766E;
+    --pass: #16A34A;
+    --warn: #D97706;
+    --fail: #DC2626;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  main {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 20px 64px;
+    flex: 1;
+  }
+
+  header { margin-bottom: 28px; }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  h1 { font-size: clamp(26px, 5vw, 34px); font-weight: 700; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin-top: 8px; font-size: 15px; line-height: 1.5; }
+
+  /* Scan console — the address bar under inspection */
+  .console {
+    background: var(--console);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    box-shadow: 0 8px 24px rgba(16, 26, 43, 0.18);
+  }
+  .console .prompt {
+    color: #4ADE80;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    user-select: none;
+    padding-left: 4px;
+  }
+  #url-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--console-ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    min-width: 0;
+  }
+  #url-input::placeholder { color: #55677F; }
+  #analyze-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 18px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+  }
+  #analyze-btn:hover { background: #0D6660; }
+  #analyze-btn:focus-visible, #url-input:focus-visible {
+    outline: 2px solid #4ADE80;
+    outline-offset: 2px;
+  }
+  #analyze-btn:disabled { opacity: 0.6; cursor: wait; }
+  .hint {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .hint kbd {
+    font-family: 'IBM Plex Mono', monospace;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 11px;
+  }
+
+  /* Error */
+  #error-box {
+    display: none;
+    margin-top: 18px;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #991B1B;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  /* Results */
+  #results { display: none; margin-top: 28px; }
+
+  .verdict-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  .score-block { min-width: 120px; }
+  #score-num {
+    font-size: 46px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  #score-num small { font-size: 20px; color: var(--muted); font-weight: 500; }
+  .score-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .verdict-info { flex: 1; min-width: 220px; }
+  .badge {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+  .badge.safe   { background: #ECFDF3; color: var(--pass); border: 1px solid #BBF0CE; }
+  .badge.risky  { background: #FFF7ED; color: var(--warn); border: 1px solid #FCD9A8; }
+  .badge.unsafe { background: #FEF2F2; color: var(--fail); border: 1px solid #FECACA; }
+  #scanned-url {
+    display: block;
+    margin-top: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  /* Segmented meter */
+  .meter {
+    display: flex;
+    gap: 4px;
+    margin-top: 14px;
+  }
+  .meter span {
+    flex: 1;
+    height: 8px;
+    border-radius: 3px;
+    background: var(--line);
+    transition: background 0.25s ease;
+  }
+  .meter span.lit.safe   { background: var(--pass); }
+  .meter span.lit.risky  { background: var(--warn); }
+  .meter span.lit.unsafe { background: var(--fail); }
+
+  /* Scan log */
+  .log-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 26px 0 10px;
+  }
+  #checks { list-style: none; }
+  .check {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 13px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    opacity: 0;
+    transform: translateY(6px);
+    animation: reveal 0.35s ease forwards;
+  }
+  @keyframes reveal { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .check { animation: none; opacity: 1; transform: none; }
+    html { scroll-behavior: auto; }
+  }
+  .check .dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 1px;
+  }
+  .check.pass .dot { background: var(--pass); }
+  .check.warn .dot { background: var(--warn); }
+  .check.fail .dot { background: var(--fail); }
+  .check h3 { font-size: 15px; font-weight: 500; }
+  .check p { font-size: 13.5px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+  .check .status-tag {
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-top: 4px;
+    flex-shrink: 0;
+  }
+  .check.pass .status-tag { color: var(--pass); }
+  .check.warn .status-tag { color: var(--warn); }
+  .check.fail .status-tag { color: var(--fail); }
+
+  footer {
+    text-align: center;
+    padding: 18px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 520px) {
+    .console { flex-wrap: wrap; }
+    #analyze-btn { width: 100%; }
+    .console .prompt { display: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">7-layer scan &middot; live threat database</div>
+    <h1>URL Phishing Detector</h1>
+    <p class="sub">Paste any link below. It's checked against seven local security
+      heuristics plus the abuse.ch global malicious-URL database before you click it.</p>
+  </header>
+
+  <div class="console" role="search">
+    <span class="prompt" aria-hidden="true">&gt;_</span>
+    <input
+      id="url-input"
+      type="text"
+      placeholder="https://example.com or just example.com"
+      autocomplete="off"
+      spellcheck="false"
+      aria-label="URL to analyze"
+      autofocus
+    />
+    <button id="analyze-btn" type="button">Analyze</button>
+  </div>
+  <p class="hint">Press <kbd>Enter</kbd> to analyze &middot; <kbd>Ctrl</kbd>+<kbd>L</kbd> to focus the URL field</p>
+
+  <div id="error-box" role="alert"></div>
+
+  <section id="results" aria-live="polite">
+    <div class="verdict-card">
+      <div class="score-block">
+        <div id="score-num" class="mono">0<small>/100</small></div>
+        <div class="score-label">Safety score</div>
+        <div class="meter" id="meter" aria-hidden="true"></div>
+      </div>
+      <div class="verdict-info">
+        <span id="verdict-badge" class="badge safe">Safe</span>
+        <span id="scanned-url"></span>
+      </div>
+    </div>
+
+    <div class="log-title">Security checks</div>
+    <ul id="checks"></ul>
+  </section>
+</main>
+
+<footer>Heuristic analysis only &mdash; always use your own judgement before entering credentials on any site.</footer>
+
+<script>
+(function () {
+  const input = document.getElementById('url-input');
+  const btn = document.getElementById('analyze-btn');
+  const errorBox = document.getElementById('error-box');
+  const results = document.getElementById('results');
+  const scoreNum = document.getElementById('score-num');
+  const badge = document.getElementById('verdict-badge');
+  const scannedUrl = document.getElementById('scanned-url');
+  const checksList = document.getElementById('checks');
+  const meter = document.getElementById('meter');
+
+  // Build the 10-segment meter once
+  for (let i = 0; i < 10; i++) meter.appendChild(document.createElement('span'));
+
+  const VERDICT_LABEL = { safe: 'Safe \u2713', risky: 'Risky \u26A0', unsafe: 'Unsafe \u2717' };
+  const STATUS_ICON = { pass: '\u2713', warn: '!', fail: '\u2717' };
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+    results.style.display = 'none';
+  }
+
+  function clearError() {
+    errorBox.style.display = 'none';
+  }
+
+  function setLoading(loading) {
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Scanning\u2026' : 'Analyze';
+  }
+
+  function renderResults(data, url) {
+    const verdict = data.verdict || 'safe';
+    const score = Math.max(0, Math.min(100, data.safety_score ?? 0));
+
+    // Verdict badge + scanned URL
+    badge.className = 'badge ' + verdict;
+    badge.textContent = VERDICT_LABEL[verdict] || verdict;
+    scannedUrl.textContent = url;
+
+    // Animated score count-up
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      scoreNum.innerHTML = score + '<small>/100</small>';
+    } else {
+      let current = 0;
+      const step = Math.max(1, Math.round(score / 30));
+      const timer = setInterval(function () {
+        current = Math.min(score, current + step);
+        scoreNum.innerHTML = current + '<small>/100</small>';
+        if (current >= score) clearInterval(timer);
+      }, 20);
+    }
+
+    // Segmented meter
+    const lit = Math.round(score / 10);
+    Array.prototype.forEach.call(meter.children, function (seg, i) {
+      seg.className = i < lit ? 'lit ' + verdict : '';
+    });
+
+    // Scan log (staggered reveal)
+    checksList.innerHTML = '';
+    (data.checks || []).forEach(function (check, i) {
+      const li = document.createElement('li');
+      li.className = 'check ' + (check.status || 'pass');
+      li.style.animationDelay = (i * 0.08) + 's';
+
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.textContent = STATUS_ICON[check.status] || '\u2713';
+
+      const body = document.createElement('div');
+      const h3 = document.createElement('h3');
+      h3.textContent = check.name || 'Check';
+      const p = document.createElement('p');
+      p.textContent = check.description || '';
+      body.appendChild(h3);
+      body.appendChild(p);
+
+      const tag = document.createElement('span');
+      tag.className = 'status-tag';
+      tag.textContent = check.status || '';
+
+      li.appendChild(dot);
+      li.appendChild(body);
+      li.appendChild(tag);
+      checksList.appendChild(li);
+    });
+
+    results.style.display = 'block';
+    results.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
+  }
+
+  async function analyze() {
+    const url = input.value.trim();
+    if (!url) {
+      showError('Please enter a URL to analyze.');
+      input.focus();
+      return;
+    }
+
+    clearError();
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url })
+      });
+      const data = await response.json();
+
+      if (!response.ok || data.status === 'error') {
+        showError(data.error || 'Something went wrong during analysis. Please try again.');
+        return;
+      }
+      renderResults(data, url);
+    } catch (err) {
+      showError('Could not reach the analysis server. Make sure it is running, then try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Events
+  btn.addEventListener('click', analyze);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') analyze();
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+  });
+})();
+</script>
+</body>
+</html>
